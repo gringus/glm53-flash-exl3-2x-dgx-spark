@@ -1419,10 +1419,16 @@ def _exl3_moe_launch(
         False,
         float(limit),
     )
+    # exllamav3 1.6.0 extends exl3_moe with 5 trailing params after num_active
+    # (output_scratch, fused_base, count_lo, count_hi, m_tile - upstream
+    # block_sparse_mlp.py passes None, None, 1, cap, 16); cap = the temp-rows
+    # dim. e8 (exl3 1.6.0) passes them whenever the symbol exposes num_active.
+    cap = int(temps[1].shape[1])
+    tail = (None, None, 1, cap, 16)
     if n_active_host is not None:
-        fn(*args, n_active_host)
+        fn(*args, n_active_host, *tail)
     else:
-        fn(*args)
+        fn(*args, *tail)
 
 
 def _exl3_moe_row_tiles(

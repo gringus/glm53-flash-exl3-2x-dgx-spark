@@ -300,6 +300,10 @@ def _check_fused_fat_and_row_tile(device) -> None:
     prev_kernel = os.environ.get("EXL3_FAT_KERNEL")
     prev_log = os.environ.get("EXL3_FAT_EXPERT_LOG")
     prev_rows = os.environ.get("EXL3_TEMP_ROWS_FUSED")
+    prev_grouped = os.environ.get("EXL3_FAT_GROUPED")
+    # v0.31.0 layer attrs make the tiny layer grouped-eligible; the legacy-tier
+    # probes below are only reachable with the grouped tier off.
+    os.environ["EXL3_FAT_GROUPED"] = "0"
     os.environ["EXL3_FAT_EXPERT_LOG"] = "1"
     os.environ["EXL3_TEMP_ROWS_FUSED"] = "128"
     try:
@@ -396,6 +400,10 @@ def _check_fused_fat_and_row_tile(device) -> None:
             os.environ.pop("EXL3_TEMP_ROWS_FUSED", None)
         else:
             os.environ["EXL3_TEMP_ROWS_FUSED"] = prev_rows
+        if prev_grouped is None:
+            os.environ.pop("EXL3_FAT_GROUPED", None)
+        else:
+            os.environ["EXL3_FAT_GROUPED"] = prev_grouped
     print(
         "exl3 legacy/sorted/batched/kernel fat fallback + row-tile vs loop OK "
         f"T={tokens} legacy={err_legacy:.5f} sorted={err_sorted:.5f} "
@@ -415,7 +423,9 @@ def _check_mixed_thin_fat(device) -> None:
         "EXL3_FAT_SORTED",
         "EXL3_FAT_BATCHED",
         "EXL3_FAT_KERNEL",
+        "EXL3_FAT_GROUPED",
     )
+    os.environ["EXL3_FAT_GROUPED"] = "0"
     previous = {key: os.environ.get(key) for key in keys}
     try:
         _method, layer = _tiny_layer(device)
@@ -569,10 +579,12 @@ def _check_dflash2() -> None:
     dflash_utils = Path(
         "/usr/local/lib/python3.12/dist-packages/vllm/v1/worker/gpu/spec_decode/dflash/utils.py"
     ).read_text()
-    assert 'draft_kv = "auto"' in dflash_utils
-    assert '"fp8_ds_mla"' in dflash_utils
+    assert "speculative_config.kv_cache_dtype" in dflash_utils  # e6: config field
+    # e6: the kit's fp8_ds_mla fallback literal is gone - the dtype resolution is a
+    # config field now (recipe speculative_config carries kv_cache_dtype:"auto"; a
+    # wrong value fails loudly at drafter load, SM121 has no plain-FP8 draft path).
     glm = Path(
-        "/usr/local/lib/python3.12/dist-packages/vllm/models/glm5next/nvidia/model.py"
+        "/usr/local/lib/python3.12/dist-packages/vllm/models/glm5next/common/model.py"
     ).read_text()
     assert "class Glm5NextModel(nn.Module, EagleModelMixin):" in glm
     assert "SupportsEagle3" in glm
@@ -583,20 +595,18 @@ def _check_dflash2() -> None:
     kv = Path(
         "/usr/local/lib/python3.12/dist-packages/vllm/v1/core/kv_cache_utils.py"
     ).read_text()
-    assert "DFLASH2-DRAFTER-GROUP" in kv
-    assert "type(v) is SlidingWindowSpec" in kv
+    assert "glm53-drafter-group-e6" in kv  # e6: rewrite marker
+    assert "type(s) is SlidingWindowSpec" in kv  # e7: drafter rewrite loop var (0.31.0 dropped the spec form)
     # Standalone DFlash2 must not inherit the 1152-token MLA manager block
     # (that doubled per-block bytes and pinned concurrency at ~1× max_len).
-    assert "compact_block = 64" in kv
+    # hybrid-kv-v2 migration replaced the fixed compact_block = 64 standalone with the
+    # compact selector; its helper enforces the 64-token-page minimum fail-closed.
+    assert "compact_block = _glm53_draft_block_size(" in kv
+    assert "DFlash2 compact KV requires a 64-token page that fits MLA" in kv
     assert "page_size_padded=mla_page" in kv
-    assert "padded slot-share block=%d" in kv
-    assert "structural_padding_waste_bytes=%d" in kv
-    assert "exact_fit_page=%d growth_bytes=%d" in kv
-    assert "s.block_size != 64 or s.page_size_padded != mla_page" in kv
-    standalone = kv.split("PADDED SLOT-SHARE:")[1].split("draft_uniform")[0]
-    assert "compact_block" in standalone
-    assert "page_size_padded=mla_page" in standalone
-    assert "new_draft_specs = dict(draft_specs)" not in standalone
+    assert "DFlash2 drafter KV: padded slot-share block=%d" in kv
+    # the pre-migration standalone form must stay gone file-wide
+    assert "new_draft_specs = dict(draft_specs)" not in kv
     src = Path("/usr/local/lib/python3.12/dist-packages/vllm/model_executor/models/qwen3_dflash.py").read_text()
     # Top-level is_causal must win so GLM-5.3-Flash-DFlash2 (is_causal=false,
     # all sliding_attention) does not silently draft as causal DFlash1.

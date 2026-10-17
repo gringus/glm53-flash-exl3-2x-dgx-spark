@@ -77,6 +77,22 @@ NATIVE_V147_SHA256 = {
 }
 NATIVE_V147_SHARED_HEADER = "exl3_moe.cuh"
 
+# e8: v1.6.0 (151539c) ships the d5e4361-class ticket scheduling natively (the
+# num_active parameter, MOE_SCHED_OFFSET, the atomicAdd ticket loop) with all
+# six quant files re-derived. The installer skips natively on this set too.
+NATIVE_V160_SHA256 = {
+    "exl3_devctx.cu": "0dc8a01e2ede690f642fe0edb92805ac7be44007e84ca4d0347e9de75a2a1900",
+    "exl3_devctx.cuh": "18eedddaa67b026013c60b12748077e4861e6e458a42e94557de43e5ebaa68fa",
+    "exl3_moe.cu": "c0418aa14931ce629d0082d711731c94b27075aa84afe2e776f1229e92b47921",
+    "exl3_moe.cuh": "86a28218028627b0a31bacdbf686564e0f10f6d0ebb486cb0dd469ea004b8b70",
+    "exl3_moe_common.cuh": "739a547d63b0e0bb53646831ac03d3dfcd24ec924659be7ed6d6f963657b1a31",
+    "exl3_moe_kernel.cuh": "29f2825196ff90ef3b9abc8481256448d01aa4277c53c250480bdbc5be7f0025",
+}
+NATIVE_SETS = (
+    ("v1.4.7 ca13bdd (v1.4.9 identical)", NATIVE_V147_SHA256),
+    ("v1.6.0 151539c", NATIVE_V160_SHA256),
+)
+
 
 def _sha(data: bytes) -> str:
     import hashlib
@@ -84,15 +100,18 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def tree_is_native_v147(quant: Path) -> bool:
-    """True when every FILE SHA256-matches the pinned v1.4.7 quant set."""
-    for name in FILES:
-        path = quant / name
-        if not path.is_file():
-            return False
-        if _sha(path.read_bytes()) != NATIVE_V147_SHA256[name]:
-            return False
-    return True
+def tree_is_native_v147(quant: Path) -> tuple[str, dict] | None:
+    """(label, sha-set) when every FILE SHA256-matches a known native quant set."""
+    for label, sha_set in NATIVE_SETS:
+        for name in FILES:
+            path = quant / name
+            if not path.is_file():
+                break
+            if _sha(path.read_bytes()) != sha_set[name]:
+                break
+        else:
+            return label, sha_set
+    return None
 
 
 def main() -> int:
@@ -114,11 +133,13 @@ def main() -> int:
         print("ticket-scheduler: GLM53_EXL3_TICKET_SCHEDULER=0, skipping")
         return 0
 
-    if tree_is_native_v147(quant):
+    native = tree_is_native_v147(quant)
+    if native is not None:
+        label, _sha_set = native
         print(
-            "ticket-scheduler: native quant set present (v1.4.7 ca13bdd bytes, "
-            "which v1.4.9 also ships byte-identically), including shared "
-            "historical exl3_moe.cuh — skipping byte-exact installer"
+            f"ticket-scheduler: native quant set present ({label} bytes; the "
+            "ticket scheduling ships natively in these revisions) - skipping "
+            "byte-exact installer"
         )
         print("ticket-scheduler: done (native=1, patched=0, already=0, total=6)")
         return 0

@@ -126,8 +126,8 @@ COMP_UNIT_REL = "quant/comp_units/glm53_exl3_moe_pipeline.cu"
 KERNEL_DEF_OLD = "void exl3_moe_kernel(EXL3_MOE_KERNEL_ARGS)"
 KERNEL_DEF_NEW = "void glm53_exl3_moe_pipeline_kernel(EXL3_MOE_KERNEL_ARGS)"
 
-KERNEL_TEMPLATE_OLD = "template<int t_bits, int MOE_TILESIZE_N, int cb>\n"
-KERNEL_TEMPLATE_NEW = "template<int t_bits, int MOE_TILESIZE_N, int cb, bool shared_input>\n"
+KERNEL_TEMPLATE_OLD = "template<int t_bits, int MOE_TILESIZE_N, int cb, int M_TILE = MOE_TILESIZE_M, bool t_half = false, bool PIPE = false>\n"
+KERNEL_TEMPLATE_NEW = "template<int t_bits, int MOE_TILESIZE_N, int cb, int M_TILE = MOE_TILESIZE_M, bool t_half = false, bool PIPE = false, bool shared_input = false>\n"
 
 # Unique body of the up-lane input Hadamard. Wrapping it in
 # `if constexpr (!shared_input)` is the whole skip: the gate lane still writes
@@ -164,11 +164,13 @@ GEMM_UP_NEW = (
 
 HOST_INCLUDE_OLD = (
     '#include "comp_units/exl3_moe_instances.cuh"\n'
+    '#include "bits_k.cuh"\n'
     '#include "exl3_devctx.cuh"\n'
     "#include <set>\n"
 )
 HOST_INCLUDE_NEW = (
     '#include "comp_units/exl3_moe_instances.cuh"\n'
+    '#include "bits_k.cuh"\n'
     '#include "exl3_devctx.cuh"\n'
     f'#include "glm53_exl3_moe_pipeline.cuh"  // {MARKER}\n'
     "#include <set>\n"
@@ -241,11 +243,10 @@ std::string glm53_exl3_moe_pipeline_geometry()
 """
 
 HOST_DISPATCH_OLD = (
-    "    fp_exl3_moe_kernel kernel = exl3_moe_kernel_instances[4 * K + 2 * cb_idx + N_off];\n"
+    "    // Launch. All blocks of the grid must be co-resident for the group barriers, so groups * width <= the\n"
 )
 
-HOST_DISPATCH_NEW = HOST_DISPATCH_OLD + """
-    // [glm53-exl3-moe-pipeline] Swap in the register-cut variant. Fail closed:
+HOST_DISPATCH_NEW = """    // [glm53-exl3-moe-pipeline] Swap in the register-cut variant. Fail closed:
     // this geometry is the only one the variant is instantiated for, and a
     // silent fallback to stock would leave the arm armed but inert, which would
     // make every measurement taken under it uninterpretable.
@@ -347,10 +348,10 @@ COMP_UNIT = """// {marker} generated comp unit -- do not edit in the image.
 
 #include <string>
 
-fp_exl3_moe_kernel glm53_exl3_moe_pipeline_k4_n256_cb1() {{ return glm53_exl3_moe_pipeline_kernel<4, 256, 1, false>; }}
-fp_exl3_moe_kernel glm53_exl3_moe_pipeline_k4_n256_cb2() {{ return glm53_exl3_moe_pipeline_kernel<4, 256, 2, false>; }}
-fp_exl3_moe_kernel glm53_exl3_moe_pipeline_k4_n256_cb1_shared() {{ return glm53_exl3_moe_pipeline_kernel<4, 256, 1, true>; }}
-fp_exl3_moe_kernel glm53_exl3_moe_pipeline_k4_n256_cb2_shared() {{ return glm53_exl3_moe_pipeline_kernel<4, 256, 2, true>; }}
+fp_exl3_moe_kernel glm53_exl3_moe_pipeline_k4_n256_cb1() {{ return glm53_exl3_moe_pipeline_kernel<4, 256, 1, 16, false, false, false>; }}
+fp_exl3_moe_kernel glm53_exl3_moe_pipeline_k4_n256_cb2() {{ return glm53_exl3_moe_pipeline_kernel<4, 256, 2, 16, false, false, false>; }}
+fp_exl3_moe_kernel glm53_exl3_moe_pipeline_k4_n256_cb1_shared() {{ return glm53_exl3_moe_pipeline_kernel<4, 256, 1, 16, false, false, true>; }}
+fp_exl3_moe_kernel glm53_exl3_moe_pipeline_k4_n256_cb2_shared() {{ return glm53_exl3_moe_pipeline_kernel<4, 256, 2, 16, false, false, true>; }}
 
 std::string glm53_exl3_moe_pipeline_geometry_literal()
 {{
