@@ -88,9 +88,21 @@ NATIVE_V160_SHA256 = {
     "exl3_moe_common.cuh": "739a547d63b0e0bb53646831ac03d3dfcd24ec924659be7ed6d6f963657b1a31",
     "exl3_moe_kernel.cuh": "29f2825196ff90ef3b9abc8481256448d01aa4277c53c250480bdbc5be7f0025",
 }
+# e10: v1.6.3 (a3bfbfd) keeps the native scheduling; only exl3_moe.cu differs
+# from v1.6.0 (host-side TORCH_CHECK guards), the other five files are
+# byte-identical. The installer skips natively on this set too.
+NATIVE_V163_SHA256 = {
+    "exl3_devctx.cu": "0dc8a01e2ede690f642fe0edb92805ac7be44007e84ca4d0347e9de75a2a1900",
+    "exl3_devctx.cuh": "18eedddaa67b026013c60b12748077e4861e6e458a42e94557de43e5ebaa68fa",
+    "exl3_moe.cu": "5878e260106d4f13eaf510f74fb8e6307ea5425e0863ba9600893a35642e8967",
+    "exl3_moe.cuh": "86a28218028627b0a31bacdbf686564e0f10f6d0ebb486cb0dd469ea004b8b70",
+    "exl3_moe_common.cuh": "739a547d63b0e0bb53646831ac03d3dfcd24ec924659be7ed6d6f963657b1a31",
+    "exl3_moe_kernel.cuh": "29f2825196ff90ef3b9abc8481256448d01aa4277c53c250480bdbc5be7f0025",
+}
 NATIVE_SETS = (
     ("v1.4.7 ca13bdd (v1.4.9 identical)", NATIVE_V147_SHA256),
     ("v1.6.0 151539c", NATIVE_V160_SHA256),
+    ("v1.6.3 a3bfbfd", NATIVE_V163_SHA256),
 )
 
 

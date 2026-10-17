@@ -377,19 +377,25 @@ COPY overlay/exl3_fat_moe.cuh /opt/glm53/exl3-fat-kernel/exl3_fat_moe.cuh
 COPY overlay/patch_exl3_ticket_scheduler.py /opt/glm53/patch_exl3_ticket_scheduler.py
 COPY overlay/exl3-ticket/ /opt/glm53/exl3-ticket/
 
-ARG EXLLAMAV3_COMMIT=151539c77abc7ab7425d30da7a4e8e3c5c154e7b
+ARG EXLLAMAV3_COMMIT=a3bfbfd0d3c0cea67815146a19fcd2bb3f84709a
 # The version string asserted against the fetched tarball. Keep it in lockstep
 # with EXLLAMAV3_COMMIT: it is the fail-closed check that the pin actually
-# resolved to the revision this recipe was validated against. e8 (exl3 1.6.0,
-# 151539c): the ticket scheduler ships natively (the installer learns the
-# 1.6.0 SHA set and skips), and the x86 CPU TUs are aarch64-safe at the source
+# resolved to the revision this recipe was validated against. e8 (exl3 1.6.0):
+# the ticket scheduler ships natively (the installer learns per-release native
+# SHA sets and skips), and the x86 CPU TUs are aarch64-safe at the source
 # level, so the home-grown stub shim is retired for a guard-aware verifier.
-# Rollback to the previous pin (docs/16):
-#   --build-arg EXLLAMAV3_COMMIT=5be886578ec80324c2c715269387be2058724b6e
-#   --build-arg EXLLAMAV3_VERSION=1.4.9
-ARG EXLLAMAV3_VERSION=1.6.0
-# v1.6.0, like v1.4.7/1.4.9, already contains the d5e4361 ticket scheduler. The
-# installer is retained for the historical c5d9c657 pin and skips native trees.
+# e10 (exl3 1.6.3, a3bfbfd): same guard/stub shape - the !x86 EXL3_AARCH64_STUB
+# branch now stubs 15 cpu symbols (2 new vs 1.6.0: swizzle_group,
+# planar_layout, both still stubbed upstream); of the scheduler files only
+# quant/exl3_moe.cu changed (host-side TORCH_CHECK guards), so the installer
+# gains the 1.6.3 native SHA set and skips.
+# Rollback to the previous pin:
+#   --build-arg EXLLAMAV3_COMMIT=151539c77abc7ab7425d30da7a4e8e3c5c154e7b
+#   --build-arg EXLLAMAV3_VERSION=1.6.0
+ARG EXLLAMAV3_VERSION=1.6.3
+# v1.6.3, like v1.4.7/1.4.9/1.6.0, already contains the d5e4361 ticket
+# scheduler. The installer is retained for the historical c5d9c657 pin and
+# skips native trees.
 # --build-arg GLM53_EXL3_TICKET_SCHEDULER=0 still skips the overlay.
 # Rollback at runtime = previous image tag + .env IMAGE= flip (the scheduler
 # is compile-time, not a runtime knob).
