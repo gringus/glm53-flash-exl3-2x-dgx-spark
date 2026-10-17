@@ -377,17 +377,18 @@ COPY overlay/exl3_fat_moe.cuh /opt/glm53/exl3-fat-kernel/exl3_fat_moe.cuh
 COPY overlay/patch_exl3_ticket_scheduler.py /opt/glm53/patch_exl3_ticket_scheduler.py
 COPY overlay/exl3-ticket/ /opt/glm53/exl3-ticket/
 
-ARG EXLLAMAV3_COMMIT=5be886578ec80324c2c715269387be2058724b6e
+ARG EXLLAMAV3_COMMIT=151539c77abc7ab7425d30da7a4e8e3c5c154e7b
 # The version string asserted against the fetched tarball. Keep it in lockstep
 # with EXLLAMAV3_COMMIT: it is the fail-closed check that the pin actually
-# resolved to the revision this recipe was validated against. The v1.4.7 ->
-# v1.4.9 delta leaves the six quant/MoE files byte-identical, so the
-# ticket-scheduler installer's native-set skip holds for both.
+# resolved to the revision this recipe was validated against. e8 (exl3 1.6.0,
+# 151539c): the ticket scheduler ships natively (the installer learns the
+# 1.6.0 SHA set and skips), and the x86 CPU TUs are aarch64-safe at the source
+# level, so the home-grown stub shim is retired for a guard-aware verifier.
 # Rollback to the previous pin (docs/16):
-#   --build-arg EXLLAMAV3_COMMIT=ca13bdd83a1f4a74fd817b88f49509e0f22a9b07
-#   --build-arg EXLLAMAV3_VERSION=1.4.7
-ARG EXLLAMAV3_VERSION=1.4.9
-# v1.4.9, like v1.4.7, already contains the d5e4361 ticket scheduler. The
+#   --build-arg EXLLAMAV3_COMMIT=5be886578ec80324c2c715269387be2058724b6e
+#   --build-arg EXLLAMAV3_VERSION=1.4.9
+ARG EXLLAMAV3_VERSION=1.6.0
+# v1.6.0, like v1.4.7/1.4.9, already contains the d5e4361 ticket scheduler. The
 # installer is retained for the historical c5d9c657 pin and skips native trees.
 # --build-arg GLM53_EXL3_TICKET_SCHEDULER=0 still skips the overlay.
 # Rollback at runtime = previous image tag + .env IMAGE= flip (the scheduler
@@ -443,7 +444,7 @@ RUN set -eux; \
     python3 /opt/glm53/patch_exl3_ext_aarch64.py /tmp/exllamav3/exllamav3/exllamav3_ext; \
     python3 /opt/glm53/patch_exl3_fat_kernel.py /tmp/exllamav3/exllamav3/exllamav3_ext /opt/glm53/exl3-fat-kernel; \
     python3 /opt/glm53/patch_exl3_ticket_scheduler.py /tmp/exllamav3/exllamav3/exllamav3_ext; \
-    python3 -c "from pathlib import Path; root = Path('/tmp/exllamav3/exllamav3/exllamav3_ext'); markers=(b'immintrin.h', b'__builtin_ia32_pause', b'_mm_pause', b'__attribute__((target(\"avx', b'target_clones(\"avx', b'__builtin_cpu_supports'); hits=[p for p in root.rglob('*') if p.suffix in {'.c','.cpp','.h','.hpp','.cu','.cuh'} and any(m in p.read_bytes() for m in markers)]; assert not hits, hits; moe=(root/'cpu'/'moe_mul1.cpp'); assert moe.is_file() and 'GLM53_AARCH64_CPU_MOE_STUB' in moe.read_text(); handoff=(root/'cpu'/'moe_handoff.cu').read_text(); assert 'GLM53_AARCH64_CPU_PAUSE_STUB' in handoff; assert 'is_f16c_supported' in (root/'avx2_target.h').read_text(); assert 'bool is_f16c_supported() { return false; }' in (root/'avx2_target.cpp').read_text(); bind=(root/'bindings.cpp').read_text(); assert 'exl3_fat_gemm' in bind and 'exl3_fat_moe' in bind"; \
+    python3 -c "from pathlib import Path; root = Path('/tmp/exllamav3/exllamav3/exllamav3_ext'); mul1=(root/'cpu'/'moe_mul1.cpp').read_text(); assert mul1.startswith('#if (defined(__x86_64__)'), 'moe_mul1.cpp lost the upstream x86 guard'; stub=(mul1[mul1.rfind('EXL3_AARCH64_STUB'):]); assert all(('exl3_moe_cpu_'+s) in stub for s in ('make_layer','free_layer','forward','forward_raw','stage_experts','set_prof','pool_prime','pool_stress','core_order','has_avx2')), 'moe_mul1.cpp lost the upstream !x86 EXL3_AARCH64_STUB stub branch'; assert all((root/rel).read_text().startswith('#if (defined(__x86_64__)') for rel in ('parallel/all_reduce_cpu_avx2.cpp','parallel/all_reduce_cpu_avx512.cpp')), 'lost the upstream x86 guards'; assert all('EXL3_AARCH64_STUB' in (root/rel).read_text() for rel in ('avx2_target.h','avx512_target.h')), 'lost the target-macro guards'; av2=(root/'avx2_target.cpp').read_text(); assert 'is_f16c_supported' in av2 and 'defined(__x86_64__)' in av2, 'avx2_target.cpp lost the internal guard'; bind=(root/'bindings.cpp').read_text(); assert 'exl3_fat_gemm' in bind and 'exl3_fat_moe' in bind"; \
     export CPATH="/usr/local/lib/python3.12/dist-packages/nvidia/cu13/include${CPATH:+:$CPATH}"; \
     export CPLUS_INCLUDE_PATH="/usr/local/lib/python3.12/dist-packages/nvidia/cu13/include${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"; \
     export C_INCLUDE_PATH="/usr/local/lib/python3.12/dist-packages/nvidia/cu13/include${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"; \
