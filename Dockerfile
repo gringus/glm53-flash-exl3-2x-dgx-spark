@@ -403,7 +403,7 @@ ARG GLM53_EXL3_TICKET_SCHEDULER=1
 ENV GLM53_EXL3_TICKET_SCHEDULER=${GLM53_EXL3_TICKET_SCHEDULER}
 ENV TORCH_CUDA_ARCH_LIST=12.1a
 ENV FLASHINFER_CUDA_ARCH_LIST=12.1a
-ENV MAX_JOBS=8
+ENV MAX_JOBS=10
 ENV CUDA_HOME=/usr/local/cuda
 ENV PATH=/usr/local/cuda/bin:${PATH}
 
@@ -455,7 +455,7 @@ RUN set -eux; \
     export CPLUS_INCLUDE_PATH="/usr/local/lib/python3.12/dist-packages/nvidia/cu13/include${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"; \
     export C_INCLUDE_PATH="/usr/local/lib/python3.12/dist-packages/nvidia/cu13/include${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"; \
     cd /tmp/exllamav3; \
-    TORCH_CUDA_ARCH_LIST=12.1a MAX_JOBS=8 \
+    TORCH_CUDA_ARCH_LIST=12.1a MAX_JOBS=10 \
       pip install --no-deps --no-build-isolation --no-cache-dir .; \
     python3 -c "import torch; import exllamav3_ext; assert hasattr(exllamav3_ext, 'exl3_moe'), dir(exllamav3_ext); assert hasattr(exllamav3_ext, 'exl3_fat_gemm'), dir(exllamav3_ext); assert hasattr(exllamav3_ext, 'exl3_fat_gemm_scatter'), dir(exllamav3_ext); assert hasattr(exllamav3_ext, 'exl3_fat_moe_gather'), dir(exllamav3_ext); print('exllamav3_ext', exllamav3_ext.__file__, 'exl3_moe=yes fat_gemm=yes fat_moe=yes')"; \
     if [ "${GLM53_EXL3_TICKET_SCHEDULER}" = "1" ]; then \
